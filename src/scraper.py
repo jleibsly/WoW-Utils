@@ -73,7 +73,7 @@ def _update_prices(db):
     information.
     """
 
-    prices_db = db[DBKeys.PRICES]
+    prices_db = db[DBKeys.PRICES.value]
     items_json = _load_json(APIEndpoint.ALL_ITEMS)
     """
     Explanation of what's about to happen:
@@ -142,7 +142,7 @@ def _update_items(db):
     """
     Get item details for everything we have price info on.
     """
-    items_db = db[DBKeys.ITEMS]
+    items_db = db[DBKeys.ITEMS.value]
 
     # We keep track of the last time we called the API. This is because they limit us
     # to 4 requests per second.
@@ -188,8 +188,8 @@ if __name__ == "__main__":
     (_, scan_timestamp) = _fetch_last_scan_info()
 
     # Only update the db if the latest scan is later than the last time we updated the db.
-    if db[DBKeys.LAST_UPDATED] < scan_timestamp:
-        db[DBKeys.LAST_UPDATED] = scan_timestamp
+    if db[DBKeys.LAST_UPDATED.value] < scan_timestamp:
+        db[DBKeys.LAST_UPDATED.value] = scan_timestamp
         _update_prices(db)
         _update_items(db)
 
