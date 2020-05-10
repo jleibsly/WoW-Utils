@@ -12,6 +12,13 @@ class DBKeys(Enum):
     ITEMS = "items"
 
 
+DEFAULT_DB_STRUCTURE = {
+    DBKeys.LAST_UPDATED.value: 0,
+    DBKeys.PRICES.value: {},
+    DBKeys.ITEMS.value: {}
+}
+
+
 def db_path():
     """
     Get the relative path from to this script to the db.json file.
@@ -26,6 +33,13 @@ def read_db():
     """
     Read in the local db file to a json object.
     """
+
+    # If the file doesn't exist, create it.
+    path = db_path()
+    if not os.path.exists(path):
+        return DEFAULT_DB_STRUCTURE
+
+    # TODO: Handle corrupted file that doesn't read in or parse to json.
     with open(db_path(), "r") as f:
         db = json.load(f)
         f.close()

@@ -137,7 +137,6 @@ def _update_prices(db):
             'numAuctions': item_from_server['numAuctions'],
             'quantity': item_from_server['quantity'],
         }
-        break
     # Note: We do not need to return anything because we are directly
     # updating the db.
 
