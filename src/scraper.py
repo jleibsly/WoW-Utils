@@ -119,19 +119,25 @@ def _update_prices(db):
 
     # Go through each item from the server, see the json above in the
     # explanation.
+    scan_timestamp = db[DBKeys.LAST_UPDATED.value]
     for item_from_server in items_json['data']:
         # setdefault will get the item from the prices_db if it exists,
-        # otherwise it will set it to `{}` and return that.
-        item_in_db = prices_db.setdefault(item_from_server['itemId'], {})
+        # otherwise it will set it to `{}` and return that. We need to
+        # convert the item id to a string because the json serializer
+        # does not allow integer keys in dictionaries.
+        item_in_db = prices_db.setdefault(str(item_from_server['itemId']), {})
 
         # I'm doing this instead of copying the dict from the server so we
         # can remove keys or update their names in our local db if we want.
-        item_in_db[scan_timestamp] = {
+        # We convert the timestamp to a string for the same reason we converted
+        # the item id to a string above.
+        item_in_db[str(scan_timestamp)] = {
             'marketValue': item_from_server['marketValue'],
             'minBuyout': item_from_server['minBuyout'],
             'numAuctions': item_from_server['numAuctions'],
             'quantity': item_from_server['quantity'],
         }
+        break
     # Note: We do not need to return anything because we are directly
     # updating the db.
 
