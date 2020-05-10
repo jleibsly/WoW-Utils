@@ -3,6 +3,15 @@
 import json
 import os.path
 
+from enum import Enum
+
+
+class DBKeys(Enum):
+    LAST_UPDATED = "last_updated"
+    PRICES = "prices"
+    ITEMS = "items"
+
+
 def db_path():
     """
     Get the relative path from to this script to the db.json file.
@@ -11,6 +20,7 @@ def db_path():
         os.path.abspath(os.path.dirname(__file__)),
         "../data/db.json"
     )
+
 
 def read_db():
     """

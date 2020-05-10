@@ -8,6 +8,7 @@ import time
 import urllib.request
 
 from datetime import datetime
+from db_helpers import DBKeys
 from enum import Enum
 
 # Running without passing this results in an unverified SSL error. OH WELL.
@@ -24,12 +25,6 @@ class APIEndpoint(Enum):
     ALL_ITEMS = f"items/{SERVER}/"
     ITEM_DETAILS = f"item/"
     LAST_SCAN = f"scans/latest/{SERVER}/"
-
-
-class DBKeys(Enum):
-    LAST_UPDATED = "last_updated"
-    PRICES = "prices"
-    ITEMS = "items"
 
 
 def _load_json(endpoint):
