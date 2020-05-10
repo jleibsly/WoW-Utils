@@ -18,6 +18,8 @@ SERVER = "earthfury-horde"
 
 # I like to put the endpoints in an enum so we can reference them in code without
 # strings, like `APIEndpoint.ALL_ITEMS`.
+
+
 class APIEndpoint(Enum):
     ALL_ITEMS = f"items/{SERVER}/"
     ITEM_DETAILS = f"item/"
@@ -60,7 +62,7 @@ def _fetch_last_scan_info():
     return (
         json['scanId'],
         int(datetime.strptime(
-            json['scannedAt'], 
+            json['scannedAt'],
             "%Y-%m-%dT%H:%M:%S.%fZ"
         ).timestamp())
     )
@@ -73,7 +75,7 @@ def _update_prices(db):
     information.
     """
     print("Updating market data with latest market scan...")
-    
+
     prices_db = db[DBKeys.PRICES.value]
     items_json = _load_json(APIEndpoint.ALL_ITEMS)
     """
@@ -120,7 +122,7 @@ def _update_prices(db):
     'historicalValue' because I have no idea what it represents.
     """
 
-    # Go through each item from the server, see the json above in the 
+    # Go through each item from the server, see the json above in the
     # explanation.
     for item_from_server in items_json['data']:
         # setdefault will get the item from the prices_db if it exists,
@@ -163,13 +165,13 @@ def _update_items(db):
         i += 1
 
         # Time in milliseconds that elapsed since the last call.
-        elapsed = (time.time()*1000) - last_call_to_api_timestamp
+        elapsed = (time.time() * 1000) - last_call_to_api_timestamp
 
         # If it's been under a quarter of a second, wait until a full quarter
         # second has passed.
         if elapsed < 250:
             time.sleep(250 - elapsed)
-        
+
         # Load the item in to the db from the item details endpoint.
         items_db[item_id] = _load_json("{}{}".format(
             APIEndpoint.ITEM_DETAILS.value,
@@ -179,7 +181,10 @@ def _update_items(db):
 
 if __name__ == "__main__":
     # Get the relative path from to this script to the db.json file.
-    db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "../data/db.json")
+    db_path = os.path.join(
+        os.path.abspath(
+            os.path.dirname(__file__)),
+        "../data/db.json")
 
     # Read in the db file.
     with open(db_path, "r") as f:
@@ -190,7 +195,8 @@ if __name__ == "__main__":
     # of the latest scan.
     (_, scan_timestamp) = _fetch_last_scan_info()
 
-    # Only update the db if the latest scan is later than the last time we updated the db.
+    # Only update the db if the latest scan is later than the last time we
+    # updated the db.
     if db[DBKeys.LAST_UPDATED.value] < scan_timestamp:
         db[DBKeys.LAST_UPDATED.value] = scan_timestamp
         _update_prices(db)
