@@ -72,7 +72,8 @@ def _update_prices(db):
     endpoint, and update the DB for each item with its current
     information.
     """
-
+    print("Updating market data with latest market scan...")
+    
     prices_db = db[DBKeys.PRICES.value]
     items_json = _load_json(APIEndpoint.ALL_ITEMS)
     """
@@ -153,6 +154,8 @@ def _update_items(db):
 
     # Total number of items we need to fetch information for.
     total = len(items_not_in_db)
+    if total > 0:
+        print(f"Fetching details for {total} new items...")
     i = 1
     for item_id in items_not_in_db:
         # Print out what number we are on
@@ -192,6 +195,8 @@ if __name__ == "__main__":
         db[DBKeys.LAST_UPDATED.value] = scan_timestamp
         _update_prices(db)
         _update_items(db)
+    else:
+        print("Nothing to update!")
 
     # Write the db back to the json file.
     with open(db_path, "w") as f:
