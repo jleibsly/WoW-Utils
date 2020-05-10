@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
 import argparse
+import db_helpers
 import json
-import os.path
 import ssl
 import time
 import urllib.request
@@ -180,16 +180,8 @@ def _update_items(db):
 
 
 if __name__ == "__main__":
-    # Get the relative path from to this script to the db.json file.
-    db_path = os.path.join(
-        os.path.abspath(
-            os.path.dirname(__file__)),
-        "../data/db.json")
-
-    # Read in the db file.
-    with open(db_path, "r") as f:
-        db = json.load(f)
-        f.close()
+    # Read in the local db.
+    db = db_helpers.read_db()
 
     # We don't use the scan id that _fetch_last_scan_info returns, just the timestamp
     # of the latest scan.
@@ -205,6 +197,4 @@ if __name__ == "__main__":
         print("Nothing to update!")
 
     # Write the db back to the json file.
-    with open(db_path, "w") as f:
-        json.dump(db, f, sort_keys=True, indent=4, separators=(',', ': '))
-        f.close()
+    db_helpers.write_db(db)
