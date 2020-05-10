@@ -2,8 +2,13 @@
 
 import argparse
 import db_helpers
+import json
 
 from db_helpers import DBKeys
+
+"""
+Still very hacky, I need to refactor it.
+"""
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="WoW Market Data",
@@ -15,25 +20,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     db = db_helpers.read_db()
-    result = [k for (k, v) in db[DBKeys.ITEMS.value].items()
+    items_db = db[DBKeys.ITEMS.value]
+    result = [k for (k, v) in items_db.items()
               if args.item_name.lower() in v['name'].lower()]
 
-    result_names = [db[DBKeys.ITEMS.value][k]['name'] for k in result]
-    if len(result_names) == 1:
-        name = result_names[0]
-    elif len(result_names) == 0:
+    if len(result) == 1:
+        result_item_id = result[0]
+    elif len(result) == 0:
         print("No results!")
         exit(0)
     else:
         i = 1
-        for n in result_names:
-            print(f"{i}. {n}")
+        for r in result:
+            name = items_db[r]['name']
+            print(f"{i}. {name}")
             i += 1
         user_input = int(input("Which item are you searching for (the #)?\n"))
         if user_input > 0 and user_input < i:
-            name = result_names[user_input - 1]
+            result_item_id = result[user_input - 1]
         else:
             print("Invalid selection.")
             exit(0)
 
-    print(name)
+    print(json.dumps(items_db[result_item_id], sort_keys=True, indent=4, separators=(',', ': ')))
