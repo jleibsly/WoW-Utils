@@ -3,6 +3,7 @@
 import json
 import os.path
 
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -53,3 +54,15 @@ def write_db(db):
     with open(db_path(), "w") as f:
         json.dump(db, f, sort_keys=True, indent=4, separators=(',', ': '))
         f.close()
+
+
+def formatted_local_date_from_timestamp(timestamp):
+    return datetime.fromtimestamp(int(timestamp)).replace(tzinfo=timezone.utc).astimezone(tz=None)
+
+
+def formatted_price(price):
+    copper = int(price % 100)
+    temp = (price - copper) / 100
+    silver = int(temp % 100)
+    gold = int((temp - silver) / 100)
+    return f"{gold}g {silver}s {copper}c"

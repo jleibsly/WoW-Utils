@@ -44,5 +44,13 @@ if __name__ == "__main__":
 
     print("Item Details\n================================")
     print(json.dumps(items_db[result_item_id], sort_keys=True, indent=4, separators=(',', ': ')))
-    print("\n\nPrice history (keys are unix timestamps):\n================================")
-    print(json.dumps(db[DBKeys.PRICES.value][result_item_id], sort_keys=True, indent=4, separators=(',', ': ')))
+    print("\n\nPrice History\n================================")
+    price_history_data = db[DBKeys.PRICES.value][result_item_id]
+    for (timestamp, data) in price_history_data.items():
+        print(db_helpers.formatted_local_date_from_timestamp(timestamp))
+        print("Market Value: {}\nMin Buyout: {}\nNumber of Auctions: {}\nQuantity: {}\n".format(
+            db_helpers.formatted_price(data['marketValue']),
+            db_helpers.formatted_price(data['minBuyout']),
+            data['numAuctions'],
+            data['quantity']
+        ))

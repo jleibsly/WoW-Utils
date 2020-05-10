@@ -193,6 +193,7 @@ if __name__ == "__main__":
         db[DBKeys.LAST_UPDATED.value] = scan_timestamp
         _update_prices(db)
         _update_items(db)
+        print("All done!")
     else:
         print("Nothing to update!")
 
