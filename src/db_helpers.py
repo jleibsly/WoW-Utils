@@ -57,7 +57,10 @@ def write_db(db):
 
 
 def formatted_local_date_from_timestamp(timestamp):
-    return datetime.fromtimestamp(int(timestamp)).replace(tzinfo=timezone.utc).astimezone(tz=None)
+    return datetime.fromtimestamp(
+        int(timestamp)).replace(
+        tzinfo=timezone.utc).astimezone(
+            tz=None)
 
 
 def formatted_price(price):
