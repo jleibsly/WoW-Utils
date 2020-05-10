@@ -42,4 +42,7 @@ if __name__ == "__main__":
             print("Invalid selection.")
             exit(0)
 
+    print("Item Details\n================================")
     print(json.dumps(items_db[result_item_id], sort_keys=True, indent=4, separators=(',', ': ')))
+    print("\n\nPrice history (keys are unix timestamps):\n================================")
+    print(json.dumps(db[DBKeys.PRICES.value][result_item_id], sort_keys=True, indent=4, separators=(',', ': ')))
