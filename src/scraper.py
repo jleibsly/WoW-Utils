@@ -51,12 +51,18 @@ def _load_json(endpoint):
     # If it's of type APIEndpoint, we need to call `.value` to convert
     # it to a string.
     val = endpoint if isinstance(endpoint, str) else endpoint.value
-    result = json.loads(
-        urllib.request.urlopen(
-            f"https://api.nexushub.co/wow-classic/v1/{val}",
-            context=HACKY_SSL_CONTEXT
-        ).read()
-    )
+    try:
+        result = json.loads(
+            urllib.request.urlopen(
+                f"https://api.nexushub.co/wow-classic/v1/{val}",
+                context=HACKY_SSL_CONTEXT
+            ).read()
+        )
+        if 'error' in result:
+            raise Exception(result['error'])
+    except Exception as e:
+        print(f"Error fetching from '{val}': " + str(e))
+        result = None
 
     # Set the last call timestamp to after we call it.
     LAST_CALL_TO_API_TIMESTAMP = time.time()
@@ -73,6 +79,8 @@ def _fetch_last_scan_info():
     returned, and formatted according to: https://bit.ly/2WGKv3l
     """
     json = _load_json(APIEndpoint.LAST_SCAN)
+    if not json:
+        raise Exception("Unable to load latest scan.")
     return (
         json['scanId'],
         db_helpers.convert_server_timestamp_to_unix(json['scannedAt'])
@@ -112,6 +120,8 @@ def _update_prices(db, exhaustive):
         }
 
     items_json = _load_json(APIEndpoint.ALL_ITEMS)
+    if not items_json:
+        raise Exception("Unable to load market data.")
     timestamp = db[DBKeys.LAST_UPDATED.value]
     [_update_item_in_db(item, item['itemId'], timestamp) for item in items_json['data']]
 
@@ -129,7 +139,10 @@ def _update_prices(db, exhaustive):
             i += 1
             # Fetch price history for the item.
             price_history = _load_json(
-                APIEndpoint.ITEM_PRICE_HISTORY.value.format(item_id))['data']
+                APIEndpoint.ITEM_PRICE_HISTORY.value.format(item_id))
+            if not price_history:
+                # Silently fail
+                continue
             # Update price history for the item in the db.
             [
                 _update_item_in_db(
@@ -137,7 +150,7 @@ def _update_prices(db, exhaustive):
                     item_id,
                     db_helpers.convert_server_timestamp_to_unix(d['scannedAt'])
                 )
-                for d in price_history
+                for d in price_history['data']
             ]
     # Note: We do not need to return anything because we are directly
     # updating the db.
@@ -163,9 +176,11 @@ def _update_items(db):
         i += 1
 
         # Load the item in to the db from the item details endpoint.
-        items_db[item_id] = _load_json(APIEndpoint.ITEM_DETAILS.value.format(
+        result = _load_json(APIEndpoint.ITEM_DETAILS.value.format(
             item_id
         ))
+        if result:
+            items_db[item_id] = result
 
 
 if __name__ == "__main__":
