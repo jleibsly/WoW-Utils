@@ -11,7 +11,7 @@ Still very hacky, I need to refactor it.
 """
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="WoW Market Data",
+    parser = argparse.ArgumentParser(prog="WoW Market Data Query Interface",
                                      description="Interface to query a local "
                                      + "database of WoW Classic market data."
                                      )
@@ -21,8 +21,11 @@ if __name__ == "__main__":
 
     db = db_helpers.read_db()
     items_db = db[DBKeys.ITEMS.value]
+    for (k, v) in items_db.items():
+        if 'name' not in v:
+            print(v)
     result = [k for (k, v) in items_db.items()
-              if args.item_name.lower() in v['name'].lower()]
+              if 'name' in v and args.item_name.lower() in v['name'].lower()]
 
     if len(result) == 1:
         result_item_id = result[0]

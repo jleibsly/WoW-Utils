@@ -69,3 +69,12 @@ def formatted_price(price):
     silver = int(temp % 100)
     gold = int((temp - silver) / 100)
     return f"{gold}g {silver}s {copper}c"
+
+
+def convert_server_timestamp_to_unix(ts):
+    return int(
+        datetime.strptime(
+            ts,
+            "%Y-%m-%dT%H:%M:%S.%fZ"
+        ).timestamp()
+    )

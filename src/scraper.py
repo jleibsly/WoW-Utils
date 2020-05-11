@@ -2,6 +2,7 @@
 
 import argparse
 import db_helpers
+import functools
 import json
 import ssl
 import time
@@ -23,26 +24,44 @@ SERVER = "earthfury-horde"
 
 class APIEndpoint(Enum):
     ALL_ITEMS = f"items/{SERVER}/"
-    ITEM_DETAILS = f"item/"
+    ITEM_DETAILS = "item/{}"
+    ITEM_PRICE_HISTORY = ALL_ITEMS + "{}/prices"
     LAST_SCAN = f"scans/latest/{SERVER}/"
 
 
+# Used for rate limiting, their docs say 20 calls per 5 seconds, 
+# so 4 per second (or a quarter second between calls). 
+# We rate limit the whole _load_json function; technically we
+# should be rate limiting per endpoint, but this is simpler.
+LAST_CALL_TO_API_TIMESTAMP = 0.0
+MIN_TIME_BETWEEN_CALLS = 0.0
 def _load_json(endpoint):
     """
     Load the endpoint, passing in the hacky SSL context. Then, parse
     it into a json object and return it.
     """
-
+    
+    # Tell the script we will be using and updating a global variable.
+    global LAST_CALL_TO_API_TIMESTAMP
+    # Calculate seconds since last API call.
+    elapsed = time.time() - LAST_CALL_TO_API_TIMESTAMP
+    if elapsed < MIN_TIME_BETWEEN_CALLS:
+        time.sleep(MIN_TIME_BETWEEN_CALLS - elapsed)
     # We are accepting either a string or instance of APIEndpoint.
     # If it's of type APIEndpoint, we need to call `.value` to convert
     # it to a string.
     val = endpoint if isinstance(endpoint, str) else endpoint.value
-    return json.loads(
+    result = json.loads(
         urllib.request.urlopen(
             f"https://api.nexushub.co/wow-classic/v1/{val}",
             context=HACKY_SSL_CONTEXT
         ).read()
     )
+
+    # Set the last call timestamp to after we call it.
+    LAST_CALL_TO_API_TIMESTAMP = time.time()
+
+    return result
 
 
 def _fetch_last_scan_info():
@@ -56,14 +75,11 @@ def _fetch_last_scan_info():
     json = _load_json(APIEndpoint.LAST_SCAN)
     return (
         json['scanId'],
-        int(datetime.strptime(
-            json['scannedAt'],
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        ).timestamp())
+        db_helpers.convert_server_timestamp_to_unix(json['scannedAt'])
     )
 
 
-def _update_prices(db):
+def _update_prices(db, exhaustive):
     """
     Function that will open the given DB, call the ALL_ITEMS
     endpoint, and update the DB for each item with its current
@@ -72,71 +88,57 @@ def _update_prices(db):
     print("Updating market data with latest market scan...")
 
     prices_db = db[DBKeys.PRICES.value]
-    items_json = _load_json(APIEndpoint.ALL_ITEMS)
-    """
-    Explanation of what's about to happen:
-    Ok, so, we get it back from the server in the format of:
-    {
-        'slug': 'earthfury-horde',
-        'data': [
-            {
-                'itemId': 8350,
-                'marketValue': 307169,
-                'previous': {
-                    'marketValue': 297483,
-                    'historicalValue': 257420,
-                    'minBuyout': 390000,
-                    'numAuctions': 1,
-                    'quantity': 1
-                },
-                'historicalValue': 256000,
-                'minBuyout': 0,
-                'numAuctions': 0,
-                'quantity': 0
-            },
-            {...} // Same as the above dictionary for another item
-        ]
-    }
 
-    What we want is to convert this so we have a dictionary of all items
-    where their itemId is the key and the rest of the info is the value.
-    We also want to know when the item was scanned. So we want the
-    dictionary to look like this:
-    {
-        8350: {
-            TIMESTAMP_OF_SCAN: {
-                'marketValue': 307169,
-                'minBuyout': 0,
-                'numAuctions': 0,
-                'quantity': 0
-            }
-    }
-
-    Note that I got rid of "previous" since we'll scrape our own history
-    over time, and this field would become redundant. I also nixed
-    'historicalValue' because I have no idea what it represents.
-    """
-
-    # Go through each item from the server, see the json above in the
-    # explanation.
-    scan_timestamp = db[DBKeys.LAST_UPDATED.value]
-    for item_from_server in items_json['data']:
+    def _update_item_in_db(item_json, item_id, timestamp):
         # setdefault will get the item from the prices_db if it exists,
         # otherwise it will set it to `{}` and return that. We need to
         # convert the item id to a string because the json serializer
         # does not allow integer keys in dictionaries.
-        item_in_db = prices_db.setdefault(str(item_from_server['itemId']), {})
+        item_in_db = prices_db.setdefault(str(item_id), {})
 
         # I'm doing this instead of copying the dict from the server so we
         # can remove keys or update their names in our local db if we want.
         # We convert the timestamp to a string for the same reason we converted
         # the item id to a string above.
-        item_in_db[str(scan_timestamp)] = {
-            'marketValue': item_from_server['marketValue'],
-            'minBuyout': item_from_server['minBuyout'],
-            'numAuctions': item_from_server['numAuctions'],
-            'quantity': item_from_server['quantity'],
+        ts_str = str(timestamp)
+        if ts_str in item_in_db:
+            return
+        item_in_db[ts_str] = {
+            'marketValue': item_json['marketValue'],
+            'minBuyout': item_json['minBuyout'],
+            # exhaustive updates do not have numAuctions
+            'numAuctions': item_json.get('numAuctions', None),
+            'quantity': item_json.get('quantity', None),
         }
+
+    items_json = _load_json(APIEndpoint.ALL_ITEMS)
+    timestamp = db[DBKeys.LAST_UPDATED.value]
+    [_update_item_in_db(item, item['itemId'], timestamp) for item in items_json['data']]
+
+    # We still update with all items and the latest scan above so that
+    # we make sure we have all items in the db, even if they weren't in
+    # a previous scan.
+    if exhaustive:
+        item_ids_to_update = prices_db.keys()
+        total = len(item_ids_to_update)
+        if total > 0:
+            print(f"Fetching price history for {total} items...")
+        i = 1
+        for item_id in item_ids_to_update:
+            print(f"{i}/{total}")
+            i += 1
+            # Fetch price history for the item.
+            price_history = _load_json(
+                APIEndpoint.ITEM_PRICE_HISTORY.value.format(item_id))['data']
+            # Update price history for the item in the db.
+            [
+                _update_item_in_db(
+                    d,
+                    item_id,
+                    db_helpers.convert_server_timestamp_to_unix(d['scannedAt'])
+                )
+                for d in price_history
+            ]
     # Note: We do not need to return anything because we are directly
     # updating the db.
 
@@ -146,10 +148,6 @@ def _update_items(db):
     Get item details for everything we have price info on.
     """
     items_db = db[DBKeys.ITEMS.value]
-
-    # We keep track of the last time we called the API. This is because they limit us
-    # to 4 requests per second.
-    last_call_to_api_timestamp = 0
 
     # We only want to update items we don't already have information on.
     items_not_in_db = [i for i in db['prices'].keys() if i not in items_db]
@@ -164,22 +162,26 @@ def _update_items(db):
         print(f"{i}/{total}")
         i += 1
 
-        # Time in milliseconds that elapsed since the last call.
-        elapsed = (time.time() * 1000) - last_call_to_api_timestamp
-
-        # If it's been under a quarter of a second, wait until a full quarter
-        # second has passed.
-        if elapsed < 250:
-            time.sleep(250 - elapsed)
-
         # Load the item in to the db from the item details endpoint.
-        items_db[item_id] = _load_json("{}{}".format(
-            APIEndpoint.ITEM_DETAILS.value,
+        items_db[item_id] = _load_json(APIEndpoint.ITEM_DETAILS.value.format(
             item_id
         ))
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog="WoW Market Data Scraper",
+                                     description="Interface to update a local "
+                                     + "database of WoW Classic market data."
+                                     )
+    parser.add_argument(
+        "--exhaustive",
+        "-e",
+        action="store_true",
+        help="Update the db by each individual item. Much slower, " +
+        "but will update with all scans that were taken in the " +
+        "last 24 hours.")
+    args = parser.parse_args()
+
     # Read in the local db.
     db = db_helpers.read_db()
 
@@ -188,10 +190,11 @@ if __name__ == "__main__":
     (_, scan_timestamp) = _fetch_last_scan_info()
 
     # Only update the db if the latest scan is later than the last time we
-    # updated the db.
-    if db[DBKeys.LAST_UPDATED.value] < scan_timestamp:
+    # updated the db. If 'exhaustive' is passed in, ignore timestamp comparison
+    # and update everything.
+    if db[DBKeys.LAST_UPDATED.value] < scan_timestamp or args.exhaustive:
         db[DBKeys.LAST_UPDATED.value] = scan_timestamp
-        _update_prices(db)
+        _update_prices(db, args.exhaustive)
         _update_items(db)
         print("All done!")
     else:
