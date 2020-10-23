@@ -6,6 +6,7 @@ import db_helpers
 import json
 
 from db_helpers import DBKeys
+from pick import pick
 
 """
 Still very hacky, I need to refactor it.
@@ -38,17 +39,8 @@ if __name__ == "__main__":
         print("No results!")
         exit(0)
     else:
-        i = 1
-        for r in result:
-            name = items_db[r]['name']
-            print(f"{i}. {name}")
-            i += 1
-        user_input = int(input("Which item are you searching for (the #)?\n"))
-        if user_input > 0 and user_input < i:
-            result_item_id = result[user_input - 1]
-        else:
-            print("Invalid selection.")
-            exit(0)
+        _, index = pick([items_db[r]['name'] for r in result], "Which item are you searching for?")
+        result_item_id = result[index]
 
     print("Item Details\n================================")
     print(
